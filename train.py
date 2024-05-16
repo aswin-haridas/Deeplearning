@@ -1,131 +1,130 @@
+import numpy as np
+import random
+import json
+
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torchtext.data import Field, BucketIterator, TabularDataset
-import nltk
-from nltk.tokenize import word_tokenize
-import random
+from torch.utils.data import Dataset, DataLoader
 
-# Set random seed for reproducibility
-SEED = 42
-torch.manual_seed(SEED)
-torch.backends.cudnn.deterministic = True
+from nltk_utils import bag_of_words, tokenize, stem
+from model import NeuralNet
 
-# Tokenization function
-def tokenize(text):
-    return word_tokenize(text)
+with open('intents.json', 'r') as f:
+    intents = json.load(f)
 
-# Load dataset
-TEXT = Field(tokenize=tokenize, lower=True, init_token='<sos>', eos_token='<eos>')
-fields = [('input', TEXT), ('response', TEXT)]
-dataset = TabularDataset(
-    path='input.txt',
-    format='tsv',
-    fields=fields
-)
+all_words = []
+tags = []
+xy = []
+# loop through each sentence in our intents patterns
+for intent in intents['intents']:
+    tag = intent['tag']
+    # add to tag list
+    tags.append(tag)
+    for pattern in intent['patterns']:
+        # tokenize each word in the sentence
+        w = tokenize(pattern)
+        # add to our words list
+        all_words.extend(w)
+        # add to xy pair
+        xy.append((w, tag))
 
-# Split dataset
-train_data, test_data = dataset.split(split_ratio=0.8)
+# stem and lower each word
+ignore_words = ['?', '.', '!']
+all_words = [stem(w) for w in all_words if w not in ignore_words]
+# remove duplicates and sort
+all_words = sorted(set(all_words))
+tags = sorted(set(tags))
 
-# Build vocabulary
-TEXT.build_vocab(train_data, min_freq=2)
+print(len(xy), "patterns")
+print(len(tags), "tags:", tags)
+print(len(all_words), "unique stemmed words:", all_words)
 
-# Define model
-class Chatbot(nn.Module):
-    def __init__(self, input_dim, output_dim, hidden_dim, n_layers, dropout):
-        super().__init__()
-        self.embedding = nn.Embedding(input_dim, hidden_dim)
-        self.transformer = nn.Transformer(
-            d_model=hidden_dim,
-            nhead=2,
-            num_encoder_layers=n_layers,
-            num_decoder_layers=n_layers,
-            dim_feedforward=hidden_dim,
-            dropout=dropout
-        )
-        self.fc_out = nn.Linear(hidden_dim, output_dim)
-        
-    def forward(self, src, trg):
-        embedded_src = self.embedding(src)
-        embedded_trg = self.embedding(trg)
-        output = self.transformer(embedded_src, embedded_trg)
-        output = self.fc_out(output)
-        return output
+# create training data
+X_train = []
+y_train = []
+for (pattern_sentence, tag) in xy:
+    # X: bag of words for each pattern_sentence
+    bag = bag_of_words(pattern_sentence, all_words)
+    X_train.append(bag)
+    # y: PyTorch CrossEntropyLoss needs only class labels, not one-hot
+    label = tags.index(tag)
+    y_train.append(label)
 
-# Initialize model and optimizer
-INPUT_DIM = len(TEXT.vocab)
-OUTPUT_DIM = len(TEXT.vocab)
-HIDDEN_DIM = 256
-N_LAYERS = 2
-DROPOUT = 0.5
+X_train = np.array(X_train)
+y_train = np.array(y_train)
 
-model = Chatbot(INPUT_DIM, OUTPUT_DIM, HIDDEN_DIM, N_LAYERS, DROPOUT)
-optimizer = optim.Adam(model.parameters())
+# Hyper-parameters 
+num_epochs = 1000
+batch_size = 8
+learning_rate = 0.001
+input_size = len(X_train[0])
+hidden_size = 8
+output_size = len(tags)
+print(input_size, output_size)
 
-# Define loss function
+class ChatDataset(Dataset):
+
+    def __init__(self):
+        self.n_samples = len(X_train)
+        self.x_data = X_train
+        self.y_data = y_train
+
+    # support indexing such that dataset[i] can be used to get i-th sample
+    def __getitem__(self, index):
+        return self.x_data[index], self.y_data[index]
+
+    # we can call len(dataset) to return the size
+    def __len__(self):
+        return self.n_samples
+
+dataset = ChatDataset()
+train_loader = DataLoader(dataset=dataset,
+                          batch_size=batch_size,
+                          shuffle=True,
+                          num_workers=0)
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+model = NeuralNet(input_size, hidden_size, output_size).to(device)
+
+# Loss and optimizer
 criterion = nn.CrossEntropyLoss()
-
-# Training function
-def train(model, iterator, optimizer, criterion):
-    model.train()
-    epoch_loss = 0
-    for batch in iterator:
-        src = batch.input
-        trg = batch.response
-        optimizer.zero_grad()
-        output = model(src, trg[:-1])
-        output_dim = output.shape[-1]
-        output = output.view(-1, output_dim)
-        trg = trg[1:].view(-1)
-        loss = criterion(output, trg)
-        loss.backward()
-        optimizer.step()
-        epoch_loss += loss.item()
-    return epoch_loss / len(iterator)
-
-# Evaluation function
-def evaluate(model, iterator, criterion):
-    model.eval()
-    epoch_loss = 0
-    with torch.no_grad():
-        for batch in iterator:
-            src = batch.input
-            trg = batch.response
-            output = model(src, trg[:-1])
-            output_dim = output.shape[-1]
-            output = output.view(-1, output_dim)
-            trg = trg[1:].view(-1)
-            loss = criterion(output, trg)
-            epoch_loss += loss.item()
-    return epoch_loss / len(iterator)
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 # Train the model
-N_EPOCHS = 10
-for epoch in range(N_EPOCHS):
-    train_loss = train(model, train_data, optimizer, criterion)
-    test_loss = evaluate(model, test_data, criterion)
-    print(f'Epoch: {epoch+1}, Train Loss: {train_loss:.3f}, Test Loss: {test_loss:.3f}')
+for epoch in range(num_epochs):
+    for (words, labels) in train_loader:
+        words = words.to(device)
+        labels = labels.to(dtype=torch.long).to(device)
+        
+        # Forward pass
+        outputs = model(words)
+        # if y would be one-hot, we must apply
+        # labels = torch.max(labels, 1)[1]
+        loss = criterion(outputs, labels)
+        
+        # Backward and optimize
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        
+    if (epoch+1) % 100 == 0:
+        print (f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
 
-# Chat function
-def chat(model, sentence, max_length=50):
-    model.eval()
-    tokens = tokenize(sentence)
-    src_indexes = [TEXT.vocab.stoi[token] for token in tokens]
-    src_tensor = torch.LongTensor(src_indexes).unsqueeze(1)
-    trg_indexes = [TEXT.vocab.stoi['<sos>']]
-    for i in range(max_length):
-        trg_tensor = torch.LongTensor(trg_indexes).unsqueeze(1)
-        output = model(src_tensor, trg_tensor)
-        pred_token = output.argmax(2)[-1, :].item()
-        trg_indexes.append(pred_token)
-        if pred_token == TEXT.vocab.stoi['<eos>']:
-            break
-    trg_tokens = [TEXT.vocab.itos[i] for i in trg_indexes]
-    return ' '.join(trg_tokens[1:-1])
 
-# Example usage
-user_input = input("You: ")
-while user_input.lower() != 'quit':
-    response = chat(model, user_input)
-    print("Bot:", response)
-    user_input = input("You: ")
+print(f'final loss: {loss.item():.4f}')
+
+data = {
+"model_state": model.state_dict(),
+"input_size": input_size,
+"hidden_size": hidden_size,
+"output_size": output_size,
+"all_words": all_words,
+"tags": tags
+}
+
+FILE = "data.pth"
+torch.save(data, FILE)
+
+print(f'training complete. file saved to {FILE}')
+
