@@ -219,6 +219,86 @@
     {
       "question": "enthaavan",
       "answer": "onnum avathond ellarum parayanath aanu ath"
+    },
+    {
+      "question": "Not enough words in vocabulary.",
+      "answer": "& C:/Users/aswin/AppData/Local/Programs/Python/Python312/python.exe d:/PROJECTS/Deeplearning/helpers.py"
+    },
+    {
+      "question": "Tharavadu",
+      "answer": "ammayude veedu"
+    },
+    {
+      "question": "Chakkakuru",
+      "answer": "chakkayude kuru"
+    },
+    {
+      "question": "Aaru",
+      "answer": "english il aaru enn paranjal who enn artham"
+    },
+    {
+      "question": "Cheruka",
+      "answer": "onnikkuka"
+    },
+    {
+      "question": "veedu",
+      "answer": "naam parkkunna idam"
+    },
+    {
+      "question": "Pothichoru",
+      "answer": "nalla taste aanu"
+    },
+    {
+      "question": "Patti",
+      "answer": "no theri kutta"
+    },
+    {
+      "question": "Kappa",
+      "answer": "kappa kizhangu oru vegitable aanu mannil indavanath"
+    },
+    {
+      "question": "naam",
+      "answer": "nammal"
+    },
+    {
+      "question": "Kaappi",
+      "answer": "ath kuddikkana sathanam"
+    },
+    {
+      "question": "enthanu Chettan",
+      "answer": "veetile mootha puthran"
+    },
+    {
+      "question": "enthanu naam",
+      "answer": "nammal"
+    },
+    {
+      "question": "enthanu english",
+      "answer": "ath oru basha"
+    },
+    {
+      "question": "enthanu Kaappi",
+      "answer": "kaappi kudikkana sathanam"
+    },
+    {
+      "question": "enthanu Varu",
+      "answer": "varan paryile namma ingot varu angott poku"
+    },
+    {
+      "question": "enthanu Mazha",
+      "answer": "aakashathunn vellam varunnath"
+    },
+    {
+      "question": "enthanu Pothichoru",
+      "answer": "bakshanam"
+    },
+    {
+      "question": "enthanu Vila",
+      "answer": "price"
+    },
+    {
+      "question": "enthanu vegitable",
+      "answer": "fud indakkan upayokikkunna sathanam"
     }
   ]
 }

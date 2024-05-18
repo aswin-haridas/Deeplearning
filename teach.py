@@ -1,6 +1,5 @@
 import json
 import random
-from helpers import remove_duplicate_words
 
 def load_knowledge_base(file_path: str) -> dict:
     try:
@@ -16,7 +15,9 @@ def save_knowledge_base(file_path: str, data: dict):
 
 def save_vocab(file_path: str, question: str, answer: str):
     with open(file_path, 'a', encoding='utf-8') as file:
-        file.write(f' {answer}')
+        answer = answer.split()
+        for word in answer:
+            file.write(word + '\n')
 
 def generate_question(file_path: str, num_words: int) -> str:
     try:
@@ -26,7 +27,7 @@ def generate_question(file_path: str, num_words: int) -> str:
                 return "Not enough words in vocabulary."
             
             random.shuffle(vocab)
-            question = ' '.join(vocab[:num_words])
+            question = "enthanu " + ' '.join(vocab[:num_words])
         return question
     except FileNotFoundError:
         return "Vocabulary file not found."
@@ -38,7 +39,7 @@ def chat_bot():
 
     while True:
         question: str = generate_question(vocab_file, 1)
-        print(f'Bot: enthanu {question}')
+        print(f'Bot: {question}')
         user_answer: str = input('Your answer: ')
         if user_answer.lower() == 'quit':
             break
@@ -46,7 +47,7 @@ def chat_bot():
             knowledge_base["questions"].append({"question": question, "answer": user_answer})
             save_knowledge_base(knowledge_base_file, knowledge_base)
             save_vocab(vocab_file, question, user_answer)
-            remove_duplicate_words(vocab_file)
+
 
 if __name__ == '__main__':
     chat_bot()
